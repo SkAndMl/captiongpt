@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 from scripts.constants import *
 from transformers import GPT2Tokenizer
-from typing import Tuple
+from typing import Tuple, List
 import math
 from scripts.data import create_tokenizer
 
@@ -366,10 +366,11 @@ class GPT(nn.Module):
 
 class ImageCaptionModel(nn.Module):
     
-    def __init__(self, vit_kwargs, gpt_kwargs) -> None:
+    def __init__(self, vit_kwargs, gpt_kwargs, device: str="cpu") -> None:
         
         super().__init__()
         
+        self.device = device
         self.vit = ViT(**vit_kwargs)
         self.gpt = GPT(**gpt_kwargs)
         self.dimension_mapping_layer = nn.Linear(vit_kwargs['d_model'], gpt_kwargs['d_model'])
@@ -379,3 +380,32 @@ class ImageCaptionModel(nn.Module):
         image_encoding = self.vit(image)
         dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding)
         return self.gpt(tokens, dimension_mapped_image_encoding, attn_mask, targets)
+
+    
+    @torch.inference_mode()
+    def generate(self, 
+                 image: torch.Tensor, 
+                 sos_token: int,
+                 eos_token: int,
+                 max_len: int=40) -> List[int]:
+
+        image_encoding: torch.Tensor = self.vit(image)
+        dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding)
+
+        tokens = torch.tensor(data=[[sos_token]], requires_grad=False).to(self.device)
+        attn_mask = torch.tensor(data=[[1]], requires_grad=False).to(self.device)
+
+        while tokens.shape[1]<max_len and tokens[0, -1]!=eos_token:
+            print(tokens.shape, attn_mask.shape)
+            logits, _ = self.gpt(tokens, dimension_mapped_image_encoding, attn_mask, None) # 1, N+1, D_MODEL
+            next_token = torch.argmax(logits[0, -1, :], dim=0).item()
+            tokens = torch.cat(
+                (tokens, torch.tensor([[next_token]], requires_grad=False)).to(self.device),
+                dim = -1
+            )
+            attn_mask = torch.cat(
+                (attn_mask, torch.tensor([[1]], requires_grad=False).to(self.device)),
+                dim = -1
+            )
+        
+        return list(tokens[0])

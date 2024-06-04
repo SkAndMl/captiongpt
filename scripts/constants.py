@@ -1,22 +1,21 @@
 import torch
 
+TRAIN_SIZE = 0.9
+BS = 32
 IMG_SIZE = 128
 CTX_LENGTH = 128
-BS = 16
-NUM_ENCODERS_VIT = 4
+BS = 32
+NUM_ENCODERS_VIT = 6
 NUM_HEADS_VIT = 4
 PS = 8
 C = 3
 D_MODEL_VIT = PS**2*C
 NUM_PATCHES = (IMG_SIZE*IMG_SIZE)//(PS*PS)
-D_MODEL_GPT = 256
-NUM_DECODERS_GPT = 4
-NUM_HEADS_GPT = 4
+D_MODEL_GPT = 384
+NUM_DECODERS_GPT = 6
+NUM_HEADS_GPT = 6
 SOFTMAX_DENOM_EPS = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
-TRAIN_SIZE = 0.9
-BS = 32
-
 
 special_tokens_dict = {
     "bos_token": "[SOS]",
@@ -42,5 +41,3 @@ gpt_kwargs = {
     "device": device
 # should add ignore_index and vocab_size before sending to the model
 }
-
-
