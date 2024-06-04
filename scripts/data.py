@@ -5,12 +5,12 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from typing import Tuple, Union, Dict
 from PIL import Image
-from .constants import IMG_SIZE, BS, TRAIN_SIZE
+from scripts.constants import IMG_SIZE, BS, TRAIN_SIZE
 import random
 
 
-image_folder = "/kaggle/input/flickr-image-dataset/flickr30k_images/flickr30k_images"
-csv_file_path = "/kaggle/input/flickr-image-dataset/flickr30k_images/results.csv"
+image_folder = "data/flickr30k_images"
+csv_file_path = "data/results.csv"
 
 class ImageCaptionDataset(Dataset):
     

@@ -1,11 +1,11 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from .constants import *
+from scripts.constants import *
 from transformers import GPT2Tokenizer
 from typing import Tuple
 import math
-from .data import create_tokenizer
+from scripts.data import create_tokenizer
 
 tokenizer = create_tokenizer(
     special_tokens_dict=special_tokens_dict
