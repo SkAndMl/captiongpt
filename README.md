@@ -29,4 +29,8 @@ python -m scripts.train --epochs 5 --lr 0.0001 --model_file_name "custom_caption
 2. --lr: Learning rate for the optimizer.
 3. --model_file_name: Base name for saving the trained model checkpoints.
 
+Given below is the sample training carried out with the keyword aguments mentioned in the **scripts/contants.py** file. As you can see from the training results further optimization is required on the hyperparameter side and the scale of the data
+
+<img src="assets/train_5.png" width="600" alt="training result for 5 epochs">
+
 This command will train the image captioning model and save the checkpoints in the **checkpoints** directory under the specified model file name.
