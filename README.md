@@ -1,4 +1,32 @@
+## image-captioning
+
+This repo contains the code for creating an image captioning model using **ViT** and **GPT** models. <br>
+Both the models are trained from scratch. The general architecture of the model in this repo is given in the image below
+
+
+<img src="https://github.com/SkAndMl/image-captioning/assets/86184014/4e9f8531-728b-48c6-8f3c-93970c0837df" width="600" alt="image_captioning">
+
+## Repository Setup
+
+Clone the repository to your local machine and install the required dependencies using the following commands:
+
+```bash
+git clone https://github.com/SkAndMl/image-captioning.git
+cd image-captioning
+pip install -r requirements.txt
+```
+
+## Hyperparameter Configuration
+Adjust the **scripts/constants.py** according to your system configuration and dataset path.
+
 ## Training
+To train the image captioning model, navigate to the repository's root directory and run the following command:
 ```bash
 python -m scripts.train --epochs 5 --lr 0.0001 --model_file_name "custom_caption_model"
 ```
+**Parameters**
+1. --epochs: Number of training epochs.
+2. --lr: Learning rate for the optimizer.
+3. --model_file_name: Base name for saving the trained model checkpoints.
+
+This command will train the image captioning model and save the checkpoints in the **checkpoints** directory under the specified model file name.
