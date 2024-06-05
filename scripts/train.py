@@ -1,6 +1,6 @@
-from scripts.model import ImageCaptionModel, tokenizer
-from scripts.data import prepare_data
-from scripts.constants import CTX_LENGTH, special_tokens_dict, vit_kwargs, gpt_kwargs, device
+from scripts.model import ImageCaptionModel
+from scripts.data import prepare_data, tokenizer
+from scripts.constants import vit_kwargs, gpt_kwargs, device
 import torch
 import os
 from datetime import datetime
@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-gpt_kwargs['vocab_size'] = tokenizer.vocab_size + len(special_tokens_dict)
-gpt_kwargs["ignore_index"] = tokenizer.get_vocab()[tokenizer.pad_token]
+gpt_kwargs['vocab_size'] = tokenizer.vocab_size
+gpt_kwargs["ignore_index"] = tokenizer.stoi[tokenizer.pad_token]
 
 logger.info("Preparing data...")
 train_dl, test_dl = prepare_data()
@@ -23,11 +23,8 @@ def train_epoch():
     
     image_caption_model.train()
     total_loss = 0
-    for image, text in train_dl:
+    for image, tokens, attn_mask in train_dl:
         
-        op = tokenizer(text, max_length=CTX_LENGTH+1, padding='max_length', truncation=True,
-                      return_tensors='pt')
-        tokens, attn_mask = op['input_ids'], op['attention_mask']
         input_tokens, target_tokens = tokens[:, :-1], tokens[:, 1:]
         attn_mask = attn_mask[:, :-1]
         
@@ -49,10 +46,8 @@ def eval_epoch():
     
     image_caption_model.eval()
     total_loss = 0
-    for image, text in test_dl:
-        op = tokenizer(text, max_length=CTX_LENGTH+1, padding='max_length', truncation=True,
-                      return_tensors='pt')
-        tokens, attn_mask = op['input_ids'], op['attention_mask']
+    for image, tokens, attn_mask in test_dl:
+        
         input_tokens, target_tokens = tokens[:, :-1], tokens[:, 1:]
         attn_mask = attn_mask[:, :-1]
         

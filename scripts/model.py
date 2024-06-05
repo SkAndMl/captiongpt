@@ -2,17 +2,13 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from scripts.constants import *
-from transformers import GPT2Tokenizer
 from typing import Tuple, List
 import math
-from scripts.data import create_tokenizer
+from scripts.data import tokenizer
 
-tokenizer = create_tokenizer(
-    special_tokens_dict=special_tokens_dict
-)
 
-VOCAB_SIZE = tokenizer.vocab_size + len(special_tokens_dict)
-IGNORE_INDEX = tokenizer.get_vocab()[tokenizer.pad_token]
+VOCAB_SIZE = tokenizer.vocab_size 
+IGNORE_INDEX = tokenizer.stoi[tokenizer.pad_token]
 
 class PatchEmbeddings(nn.Module):
     
@@ -367,11 +363,11 @@ class GPT(nn.Module):
 
 class ImageCaptionModel(nn.Module):
     
-    def __init__(self, vit_kwargs, gpt_kwargs, device: str="cpu") -> None:
+    def __init__(self, vit_kwargs, gpt_kwargs) -> None:
         
         super().__init__()
         
-        self.device = device
+        self.device = gpt_kwargs['device']
         self.vit = ViT(**vit_kwargs)
         self.gpt = GPT(**gpt_kwargs)
         self.dimension_mapping_layer = nn.Linear(vit_kwargs['d_model'], gpt_kwargs['d_model'])

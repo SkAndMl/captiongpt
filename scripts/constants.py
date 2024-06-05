@@ -3,7 +3,7 @@ import torch
 TRAIN_SIZE = 0.9
 BS = 32
 IMG_SIZE = 128
-CTX_LENGTH = 128
+CTX_LENGTH = 512
 BS = 32
 NUM_ENCODERS_VIT = 6
 NUM_HEADS_VIT = 4
@@ -16,12 +16,6 @@ NUM_DECODERS_GPT = 6
 NUM_HEADS_GPT = 6
 SOFTMAX_DENOM_EPS = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-special_tokens_dict = {
-    "bos_token": "[SOS]",
-    "eos_token": "[EOS]",
-    "pad_token": "[PAD]"
-}
 
 vit_kwargs = {
     "num_encoders" : NUM_ENCODERS_VIT,

@@ -1,6 +1,6 @@
 from scripts.model import ImageCaptionModel
 from scripts.constants import *
-from scripts.data import create_tokenizer
+from scripts.data import tokenizer
 import torch
 from torchvision import transforms
 from PIL import Image
@@ -11,7 +11,6 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 
-tokenizer = create_tokenizer(special_tokens_dict=special_tokens_dict)
 
 def caption_image(file_path: str, checkpoint: str, device: str="cpu", max_len: int=40) -> str:
 
@@ -21,8 +20,8 @@ def caption_image(file_path: str, checkpoint: str, device: str="cpu", max_len: i
         state_dict=torch.load(checkpoint, map_location=device)
     )
 
-    tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.bos_token_id,
-                                          eos_token=tokenizer.eos_token_id,
+    tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.stoi[' '],
+                                          eos_token=tokenizer.pad_token_id,
                                           max_len=max_len)
     return tokenizer.decode(token_ids=tokens)
 
