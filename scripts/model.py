@@ -193,7 +193,8 @@ class TextEmbedding(nn.Module):
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         
         # tokens -> B, CTX_LENGTH
-        return self.positional_encoding + self.token_embedding(tokens)
+        token_embeddings = self.token_embedding(tokens)
+        return self.positional_encoding[:, :tokens.shape[1], :] + token_embeddings
 
 
 class CausalSelfAttnBlock(nn.Module):
@@ -335,10 +336,10 @@ class GPT(nn.Module):
         return num/denom
     
     
-    def _create_mask(self, attn_mask: torch.Tensor) -> torch.Tensor:
+    def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:
         
         mask = torch.triu(
-            input = torch.ones(size=(self.context_length, self.context_length), requires_grad = False)*float("-inf"),
+            input = torch.ones(size=(context_length, context_length), requires_grad = False)*float("-inf"),
             diagonal = 1
         ).unsqueeze(0).repeat(attn_mask.shape[0], 1, 1)
         mask = mask.to(self.device)
@@ -354,7 +355,7 @@ class GPT(nn.Module):
         # attn_mask -> B, CTX_LENGTH
         
         embeddings = self.embedding(tokens) # B, CTX_LENGTH, D_MODEL
-        mask = self._create_mask(attn_mask)
+        mask = self._create_mask(tokens.shape[1], attn_mask)
         decoder_out = self.decoder(embeddings, image_encoding, mask) # B, CTX_LENGTH, D_MODEL
         logits = self.cls_head(decoder_out) # B, CTX_LENGTH, VOCAB_SIZE
         loss = None
@@ -396,16 +397,15 @@ class ImageCaptionModel(nn.Module):
         attn_mask = torch.tensor(data=[[1]], requires_grad=False).to(self.device)
 
         while tokens.shape[1]<max_len and tokens[0, -1]!=eos_token:
-            print(tokens.shape, attn_mask.shape)
             logits, _ = self.gpt(tokens, dimension_mapped_image_encoding, attn_mask, None) # 1, N+1, D_MODEL
             next_token = torch.argmax(logits[0, -1, :], dim=0).item()
             tokens = torch.cat(
-                (tokens, torch.tensor([[next_token]], requires_grad=False)).to(self.device),
+                (tokens, torch.tensor([[next_token]], requires_grad=False)),
                 dim = -1
-            )
+            ).to(self.device)
             attn_mask = torch.cat(
-                (attn_mask, torch.tensor([[1]], requires_grad=False).to(self.device)),
+                (attn_mask, torch.tensor([[1]], requires_grad=False)),
                 dim = -1
-            )
+            ).to(self.device)
         
         return list(tokens[0])

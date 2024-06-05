@@ -34,3 +34,10 @@ Given below is the sample training carried out with the keyword aguments mention
 <img src="assets/train_5.png" width="600" alt="training result for 5 epochs">
 
 This command will train the image captioning model and save the checkpoints in the **checkpoints** directory under the specified model file name.
+
+## Inference
+To caption an image using the training model under the **checkpoints** directory, use the following command
+
+```bash
+python3.11 inference.py --file_path "sample.jpeg" --max_len 40 --device "cpu" --checkpoint "checkpoints/image_caption_model.pt"
+```
