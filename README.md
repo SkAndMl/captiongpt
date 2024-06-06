@@ -4,7 +4,7 @@ This repo contains the code for creating an image captioning model using **ViT**
 Both the models are trained from scratch. The general architecture of the model in this repo is given in the image below
 
 
-<img src="https://github.com/SkAndMl/image-captioning/assets/86184014/4e9f8531-728b-48c6-8f3c-93970c0837df" width="600" alt="image_captioning">
+<img src="assets/image_captioning.png" width="600" alt="image_captioning">
 
 ## Repository Setup
 
