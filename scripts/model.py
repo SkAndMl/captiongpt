@@ -243,12 +243,16 @@ class CrossAttnBlock(nn.Module):
                 num_heads: int = NUM_HEADS_GPT) -> None:
         
         super().__init__()
+
+        assert d_model%num_heads==0, ValueError(f"{d_model} d_model must be divisible by {num_heads} num_heads")
+
         self.d_model = d_model
-        self.cross_attn_block = nn.MultiheadAttention(
-            embed_dim = d_model,
-            num_heads = num_heads,
-            batch_first = True
-        )
+        self.num_heads = num_heads
+        self.head_dim = d_model // num_heads
+        self.q_proj = nn.Linear(d_model, d_model)
+        self.k_proj = nn.Linear(d_model, d_model)
+        self.v_proj = nn.Linear(d_model, d_model)
+        self.projection_layer = nn.Linear(d_model, d_model)
         self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor) -> torch.Tensor:
@@ -258,13 +262,17 @@ class CrossAttnBlock(nn.Module):
         
         # q_k_prod -> query @ key.transpose(1, 2) -> B, CTX_LENGTH, 1
         # q_k_prod @ value -> B, CTX_LENGTH, D_MODEL
-        
-        q_k_prod = (x @ image_encoding.transpose(1, 2)) / math.sqrt(self.d_model) # B, CTX_LENGTH, 1
-        wts = F.softmax(q_k_prod, dim=-1) 
-        out = wts @ image_encoding # B, CTX_LENGTH, D_MODEL
-        return out
-        
-    
+
+        B, CTX_LENGTH, _ = x.shape        
+
+        q = self.q_proj(x).view(B, CTX_LENGTH, self.num_heads, self.head_dim).permute(0, 2, 1, 3) # B, NUM_HEADS, CTX_LENGTH, HEAD_DIM
+        k = self.k_proj(image_encoding).view(B, 1, self.num_heads, self.head_dim).permute(0, 2, 1, 3) # B, NUM_HEADS, 1, HEAD_DIM
+        v = self.v_proj(image_encoding).view(B, 1, self.num_heads, self.head_dim).permute(0, 2, 1, 3) # B, NUM_HEADS, 1, HEAD_DIM
+
+        q_k_prod = F.softmax((q @ k.transpose(2, 3)) / math.sqrt(self.head_dim), dim=-1) # B, NUM_HEADS, CTX_LENGTH, 1
+        wts = q_k_prod @ v # B, NUM_HEADS, CTX_LENGTH, HEAD_DIM
+        y = wts.transpose(1, 2).contiguous().view(B, CTX_LENGTH, -1) # B, CTX_LENGTH, D_MODEL
+        return self.layer_norm(x + self.projection_layer(y))
     
 class GPTDecoderBlock(nn.Module):
     
@@ -323,14 +331,6 @@ class GPT(nn.Module):
         self.decoder = GPTDecoder(num_decoders, d_model, num_heads, softmax_eps)
         self.cls_head = nn.Linear(d_model, vocab_size)
         self.ignore_index = ignore_index
-        
-    
-    def _safe_softmax(self, x: torch.Tensor) -> torch.Tensor:
-        
-        num = torch.exp(x)
-        denom = torch.exp(x).sum(dim=-1, keepdims=True) + self.softmax_eps
-        return num/denom
-    
     
     def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:
         
