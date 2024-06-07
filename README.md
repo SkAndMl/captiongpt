@@ -41,3 +41,8 @@ To caption an image using the training model under the **checkpoints** directory
 ```bash
 python3.11 inference.py --file_path "sample.jpeg" --max_len 40 --device "cpu" --checkpoint "checkpoints/image_caption_model.pt"
 ```
+
+## Todo
+1. Add pre-trained models support using timm
+2. Port from character tokenization to subword tokenization
+3. Scaled GPT to GPT2

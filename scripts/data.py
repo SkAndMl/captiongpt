@@ -2,9 +2,9 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-from typing import Tuple, Union, Dict
+from typing import Tuple
 from PIL import Image
-from scripts.constants import IMG_SIZE, BS, TRAIN_SIZE, CTX_LENGTH
+from scripts.constants import *
 import random
 from scripts.tokenizer import Tokenizer
 
@@ -22,7 +22,7 @@ tokenizer = Tokenizer(texts=data['comment'].tolist(), pad_token='/')
 
 class ImageCaptionDataset(Dataset):
     
-    def __init__(self, dataframe: pd.DataFrame, image_size: int=IMG_SIZE, context_length: int=CTX_LENGTH) -> None:
+    def __init__(self, dataframe: pd.DataFrame, image_size: int, context_length: int) -> None:
         
         assert dataframe.columns[0] == 'image_name', ValueError("The first column should be the path to the image")
         assert dataframe.columns[1] == "comment", ValueError("The second column should be named 'comment'")
@@ -46,10 +46,10 @@ class ImageCaptionDataset(Dataset):
         return image_tensor, tokens, attention_mask
     
 
-def prepare_data() -> Tuple[DataLoader]:
+def prepare_data(train_size: float, image_size: int, batch_size: int) -> Tuple[DataLoader]:
  
     idxs = set(range(data.shape[0]))
-    train_idxs = random.sample(sorted(idxs), k=int(len(idxs)*TRAIN_SIZE))
+    train_idxs = random.sample(sorted(idxs), k=int(len(idxs)*train_size))
     test_idxs = list(idxs.difference(set(train_idxs)))
 
     train_data = data.copy(deep=True).iloc[train_idxs, :].reset_index(drop=True)
@@ -58,24 +58,24 @@ def prepare_data() -> Tuple[DataLoader]:
 
     train_dataset = ImageCaptionDataset(
         dataframe = train_data,
-        image_size = IMG_SIZE
+        image_size = image_size
     )
 
     test_dataset = ImageCaptionDataset(
         dataframe = test_data,
-        image_size = IMG_SIZE
+        image_size = image_size
     )
 
     train_dl = DataLoader(
         dataset = train_dataset,
-        batch_size = BS,
+        batch_size = batch_size,
         shuffle = True,
         num_workers = 2
     )
 
     test_dl = DataLoader(
         dataset = test_dataset,
-        batch_size = BS,
+        batch_size = batch_size,
         shuffle = False
     )
 

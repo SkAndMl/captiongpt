@@ -1,37 +1,42 @@
 import torch
 
-TRAIN_SIZE = 0.9
-BS = 32
-IMG_SIZE = 224
-CTX_LENGTH = 512
-BS = 32
-NUM_ENCODERS_VIT = 8
-NUM_HEADS_VIT = 4
-PS = 16
-C = 3
-D_MODEL_VIT = PS**2*C
-NUM_PATCHES = (IMG_SIZE*IMG_SIZE)//(PS*PS)
-D_MODEL_GPT = 384
-NUM_DECODERS_GPT = 8
-NUM_HEADS_GPT = 6
-SOFTMAX_DENOM_EPS = 1e-9
+train_size = 0.9
+bs = 32
+img_size = 224
+ctx_length = 512
+num_encoders_vit = 8
+num_heads_vit = 4
+ps = 16
+c = 3
+d_model_vit = ps**2*c
+num_patches = (img_size*img_size)//(ps*ps)
+d_model_gpt = 384
+num_decoders_gpt = 8
+num_heads_gpt = 6
+softmax_denom_eps = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 vit_kwargs = {
-    "num_encoders" : NUM_ENCODERS_VIT,
-    "num_heads": NUM_HEADS_VIT,
-    "num_patches": NUM_PATCHES,
-    "patch_size": PS,
-    "channels": C,
-    "d_model": D_MODEL_VIT
+    "num_encoders" : num_encoders_vit,
+    "num_heads": num_heads_vit,
+    "num_patches": num_patches,
+    "patch_size": ps,
+    "channels": c,
+    "d_model": d_model_vit,
+    "pretrained_model_name": None
 }
 
 gpt_kwargs = {
-    "d_model": D_MODEL_GPT,
-    "context_length": CTX_LENGTH,
-    "num_decoders": NUM_DECODERS_GPT,
-    "softmax_eps": SOFTMAX_DENOM_EPS,
-    "num_heads": NUM_HEADS_GPT,
-    "device": device
+    "d_model": d_model_gpt,
+    "context_length": ctx_length,
+    "num_decoders": num_decoders_gpt,
+    "softmax_eps": softmax_denom_eps,
+    "num_heads": num_heads_gpt
 # should add ignore_index and vocab_size before sending to the model
+}
+
+config = {
+    "vit_kwargs": vit_kwargs,
+    "gpt_kwargs": gpt_kwargs,
+    "device": device
 }

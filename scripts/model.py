@@ -1,28 +1,26 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from scripts.constants import *
+from scripts.constants import config
 from typing import Tuple, List
 import math
 from scripts.data import tokenizer
-
+import timm
+import os
 
 VOCAB_SIZE = tokenizer.vocab_size 
 IGNORE_INDEX = tokenizer.stoi[tokenizer.pad_token]
 
 class PatchEmbeddings(nn.Module):
     
-    def __init__(self, 
-                patch_size: int=PS,
-                channels: int=C,
-                d_model: int=D_MODEL_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
         
-        self.conv_patch_layer = nn.Conv2d(in_channels = channels,
-                                         out_channels = d_model,
-                                         kernel_size = patch_size,
-                                         stride=patch_size)
+        self.conv_patch_layer = nn.Conv2d(in_channels = config['channels'],
+                                         out_channels = config['d_model'],
+                                         kernel_size = config['patch_size'],
+                                         stride = config['patch_size'])
         self.flatten = nn.Flatten(start_dim=2, end_dim=3)
         
     
@@ -34,27 +32,23 @@ class PatchEmbeddings(nn.Module):
         permuted_patches = flattened_patches.permute(0, 2, 1) # B, N, D_MODEL
         return permuted_patches
 
-class Embedding(nn.Module):
+class ViTEmbedding(nn.Module):
     
-    def __init__(self, 
-                num_patches: int=NUM_PATCHES,
-                patch_size: int=PS,
-                channels: int=C,
-                d_model: int=D_MODEL_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
         self.class_token_embedding = nn.Parameter(
-            data = torch.randn(size=(1, 1, d_model)),
+            data = torch.randn(size=(1, 1, config['d_model'])),
             requires_grad = True
         )
         self.positional_embedding = nn.Parameter(
-            data = torch.randn(size=(1, num_patches+1, d_model)),
+            data = torch.randn(size=(1, config['num_patches']+1, config["d_model"])),
             requires_grad = True
         )
         self.patch_embeddings_layer = PatchEmbeddings(
-            patch_size = patch_size,
-            channels = channels,
-            d_model = d_model
+            patch_size = config["patch_size"],
+            channels =config["channels"],
+            d_model = config["d_model"]
         )
         
     def forward(self, images: torch.Tensor) -> torch.Tensor:
@@ -69,19 +63,17 @@ class Embedding(nn.Module):
 
 class MSABlock(nn.Module):
     
-    def __init__(self, 
-                d_model: int = D_MODEL_VIT,
-                num_heads: int = NUM_HEADS_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
         
         self.attn_block = nn.MultiheadAttention(
-            embed_dim = d_model,
-            num_heads = num_heads,
+            embed_dim = config["d_model"],
+            num_heads = config["num_heads"],
             batch_first = True
         )
         
-        self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
+        self.layer_norm = nn.LayerNorm(normalized_shape=config["d_model"])
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         
@@ -91,11 +83,10 @@ class MSABlock(nn.Module):
     
 class MLPBlock(nn.Module):
     
-    def __init__(self, 
-                d_model: int = D_MODEL_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        
+        d_model = config["d_model"]
         self.dense_net = nn.Sequential(
             nn.Linear(d_model, d_model*4),
             nn.GELU(),
@@ -111,13 +102,11 @@ class MLPBlock(nn.Module):
     
 class EncoderBlock(nn.Module):
     
-    def __init__(self, 
-                d_model: int = D_MODEL_VIT,
-                num_heads: int = NUM_HEADS_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        self.msa_block = MSABlock(d_model=d_model, num_heads=num_heads)
-        self.mlp_block = MLPBlock(d_model=d_model)
+        self.msa_block = MSABlock(config)
+        self.mlp_block = MLPBlock(config)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         
@@ -126,13 +115,10 @@ class EncoderBlock(nn.Module):
 
 class Encoder(nn.Module):
     
-    def __init__(self, 
-                num_encoders: int = NUM_ENCODERS_VIT,
-                d_model: int = D_MODEL_VIT,
-                num_heads: int = NUM_HEADS_VIT) -> None: 
+    def __init__(self, config) -> None: 
         
         super().__init__()
-        self.blocks = nn.ModuleList([EncoderBlock(d_model=d_model, num_heads=num_heads) for _ in range(num_encoders)])
+        self.blocks = nn.ModuleList([EncoderBlock(config) for _ in range(config["num_encoders"])])
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         
@@ -143,46 +129,33 @@ class Encoder(nn.Module):
     
 class ViT(nn.Module):
     
-    def __init__(self, 
-                num_encoders: int=NUM_ENCODERS_VIT,
-                num_heads: int = NUM_HEADS_VIT,
-                num_patches: int=NUM_PATCHES,
-                patch_size: int=PS,
-                channels: int=C,
-                d_model: int=D_MODEL_VIT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
         
-        self.embedding_layer = Embedding(
-            num_patches, patch_size, channels, d_model
-        )
-        self.encoder = Encoder(
-            num_encoders, d_model, num_heads
-        )
+        self.embedding_layer = ViTEmbedding(config)
+        self.encoder = Encoder(config)
     
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         # B, C, H, W
         embeddings = self.embedding_layer(images) # B, NUM_PATCHES+1, D_MODEL
         encoded_vectors = self.encoder(embeddings) # B, NUM_PATCHES+1, D_MODEL
-        return encoded_vectors[:, :1, :]
+        return encoded_vectors[:, 0, :]
 
 
 
-class TextEmbedding(nn.Module):
+class GPTEmbedding(nn.Module):
     
-    def __init__(self,
-                vocab_size: int = VOCAB_SIZE,
-                d_model: int = D_MODEL_GPT,
-                context_length: int = CTX_LENGTH) -> None:
+    def __init__(self,config) -> None:
         
         super().__init__()
         self.token_embedding = nn.Embedding(
-            num_embeddings = vocab_size,
-            embedding_dim = d_model
+            num_embeddings = config["vocab_size"],
+            embedding_dim = config["d_model"]
         )
         
         self.positional_encoding = nn.Parameter(
-            data = torch.randn(size=(1, context_length, d_model)),
+            data = torch.randn(size=(1, config["context_length"], config["d_model"])),
             requires_grad = True
         )
     
@@ -195,22 +168,19 @@ class TextEmbedding(nn.Module):
 
 class CausalSelfAttnBlock(nn.Module):
     
-    def __init__(self,
-                d_model: int=D_MODEL_GPT,
-                num_heads: int = NUM_HEADS_GPT,
-                softmax_eps: float = SOFTMAX_DENOM_EPS) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        assert d_model % num_heads == 0, ValueError(f"{d_model} d_model should be exactly divisible by {num_heads} num_heads")
+        assert config["d_model"] % config["num_heads"] == 0, ValueError(f"{config['d_model']} d_model should be exactly divisible by {config['num_heads']} num_heads")
         
-        self.d_model = d_model
-        self.head_dim = d_model // num_heads
-        self.num_heads = num_heads
-        self.softmax_eps = softmax_eps
+        self.d_model = config["d_model"]
+        self.head_dim = config["d_model"] // config.num_heads
+        self.num_heads = config.num_heads
+        self.softmax_eps = config.softmax_eps
         
-        self.projection_layer = nn.Linear(d_model, d_model*3)
-        self.out_layer = nn.Linear(d_model, d_model)
-        self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
+        self.projection_layer = nn.Linear(self.d_model, self.d_model*3)
+        self.out_layer = nn.Linear(self.d_model, self.d_model)
+        self.layer_norm = nn.LayerNorm(normalized_shape=self.d_model)
         
     def _safe_softmax(self, x: torch.Tensor) -> torch.Tensor:
         
@@ -238,22 +208,20 @@ class CausalSelfAttnBlock(nn.Module):
 
 class CrossAttnBlock(nn.Module):
     
-    def __init__(self,
-                d_model: int=D_MODEL_GPT,
-                num_heads: int = NUM_HEADS_GPT) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
 
-        assert d_model%num_heads==0, ValueError(f"{d_model} d_model must be divisible by {num_heads} num_heads")
+        assert config.d_model%config.config.num_heads==0, ValueError(f"{config.d_model} d_model must be divisible by {config.num_heads} num_heads")
 
-        self.d_model = d_model
-        self.num_heads = num_heads
-        self.head_dim = d_model // num_heads
-        self.q_proj = nn.Linear(d_model, d_model)
-        self.k_proj = nn.Linear(d_model, d_model)
-        self.v_proj = nn.Linear(d_model, d_model)
-        self.projection_layer = nn.Linear(d_model, d_model)
-        self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
+        self.d_model = config.d_model
+        self.num_heads = config.num_heads
+        self.head_dim = config.d_model // config.num_heads
+        self.q_proj = nn.Linear(config.d_model, config.d_model)
+        self.k_proj = nn.Linear(config.d_model, config.d_model)
+        self.v_proj = nn.Linear(config.d_model, config.d_model)
+        self.projection_layer = nn.Linear(config.d_model, config.d_model)
+        self.layer_norm = nn.LayerNorm(normalized_shape=config.d_model)
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor) -> torch.Tensor:
         
@@ -276,15 +244,12 @@ class CrossAttnBlock(nn.Module):
     
 class GPTDecoderBlock(nn.Module):
     
-    def __init__(self,
-                d_model: int=D_MODEL_GPT,
-                num_heads: int=NUM_HEADS_GPT,
-                softmax_eps: float = SOFTMAX_DENOM_EPS) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        self.csa_block = CausalSelfAttnBlock(d_model, num_heads, softmax_eps)
-        self.cross_attn_block = CrossAttnBlock(d_model, num_heads)
-        self.mlp_block = MLPBlock(d_model)
+        self.csa_block = CausalSelfAttnBlock(config)
+        self.cross_attn_block = CrossAttnBlock(config)
+        self.mlp_block = MLPBlock(config)
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         
@@ -295,14 +260,10 @@ class GPTDecoderBlock(nn.Module):
 
 class GPTDecoder(nn.Module):
     
-    def __init__(self, 
-                num_decoders: int = NUM_DECODERS_GPT,
-                d_model: int = D_MODEL_GPT,
-                num_heads: int = NUM_HEADS_GPT,
-                softmax_eps: float = SOFTMAX_DENOM_EPS) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        self.decoder_blocks = nn.ModuleList([GPTDecoderBlock(d_model, num_heads, softmax_eps) for _ in range(num_decoders)])
+        self.decoder_blocks = nn.ModuleList([GPTDecoderBlock(config) for _ in range(config.num_decoders)])
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         
@@ -313,24 +274,16 @@ class GPTDecoder(nn.Module):
     
 class GPT(nn.Module):
     
-    def __init__(self,
-                vocab_size: int = VOCAB_SIZE,
-                d_model: int = D_MODEL_GPT,
-                context_length: int = CTX_LENGTH,
-                num_decoders: int = NUM_DECODERS_GPT,
-                num_heads: int = NUM_HEADS_GPT,
-                softmax_eps: float = SOFTMAX_DENOM_EPS,
-                ignore_index: int = IGNORE_INDEX,
-                device: str = "cpu") -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
-        self.device = device
-        self.context_length = context_length
-        self.softmax_eps = softmax_eps
-        self.embedding = TextEmbedding(vocab_size, d_model, context_length)
-        self.decoder = GPTDecoder(num_decoders, d_model, num_heads, softmax_eps)
-        self.cls_head = nn.Linear(d_model, vocab_size)
-        self.ignore_index = ignore_index
+        self.device = config.device
+        self.context_length = config.context_length
+        self.softmax_eps = config.softmax_eps
+        self.embedding = GPTEmbedding(config)
+        self.decoder = GPTDecoder(config)
+        self.cls_head = nn.Linear(config.d_model, config.vocab_size)
+        self.ignore_index = config.ignore_index
     
     def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:
         
@@ -363,19 +316,29 @@ class GPT(nn.Module):
 
 class ImageCaptionModel(nn.Module):
     
-    def __init__(self, vit_kwargs, gpt_kwargs) -> None:
+    def __init__(self, config) -> None:
         
         super().__init__()
         
-        self.device = gpt_kwargs['device']
-        self.vit = ViT(**vit_kwargs)
-        self.gpt = GPT(**gpt_kwargs)
-        self.dimension_mapping_layer = nn.Linear(vit_kwargs['d_model'], gpt_kwargs['d_model'])
+        self.device = config['device']
+        self.is_vit_pretrained = False
+        if config['vit_kwargs'].pretrained_model_name is not None:
+            self.is_vit_pretrained = True
+            self.vit = timm.create_model(
+                model_name = config['vit_kwargs'].pretrained_model_name,
+                pretrained=True,
+                num_classes = 0,
+                global_pool = 'avg'
+            )
+        else:   
+            self.vit = ViT(config['vit_kwargs'])
+        self.gpt = GPT(config['gpt_kwargs'])
+        self.dimension_mapping_layer = nn.Linear(config.vit_kwargs['d_model'], config.gpt_kwargs['d_model'])
         
     def forward(self, image: torch.Tensor, tokens: torch.Tensor, attn_mask: torch.Tensor, targets: torch.Tensor=None) -> Tuple[torch.Tensor]:
         
         image_encoding = self.vit(image)
-        dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding)
+        dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding[:, None, :])
         return self.gpt(tokens, dimension_mapped_image_encoding, attn_mask, targets)
 
     
@@ -405,3 +368,14 @@ class ImageCaptionModel(nn.Module):
             ).to(self.device)
         
         return list(tokens[0])
+    
+    @classmethod
+    def from_pretrained(cls, vit_kwargs, gpt_kwargs, checkpoint):
+
+        if not os.path.exists(checkpoint):
+            raise FileNotFoundError(f"{checkpoint} does not exist")
+
+        model = cls(vit_kwargs, gpt_kwargs)
+        model.load_state_dict(torch.load(checkpoint, map_location=gpt_kwargs.device))
+        return model
+    

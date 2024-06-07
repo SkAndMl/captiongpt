@@ -14,7 +14,7 @@ class Tokenizer:
         self.pad_token_id = None
         self._create_mapping()
     
-    def _create_mapping(self):
+    def _create_mapping(self) -> None:
         
         complete_text: str = sorted(list(set(". ".join(self.texts))))
         self.itos = {i:ch for i, ch in enumerate(complete_text)}
