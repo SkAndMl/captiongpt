@@ -22,7 +22,7 @@ Adjust the **scripts/constants.py** according to your system configuration and d
 ## Training
 To train the image captioning model, navigate to the repository's root directory and run the following command:
 ```bash
-python -m scripts.train --epochs 5 --lr 0.0001 --model_file_name "custom_caption_model"
+python -m scripts.trainer --epochs 5 --freeze_epochs 2 --lr 0.0001 --model_file_name "custom_caption_model" --device "cuda"
 ```
 **Parameters**
 1. --epochs: Number of training epochs.

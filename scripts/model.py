@@ -1,22 +1,16 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from scripts.constants import config
 from typing import Tuple, List
 import math
-from scripts.data import tokenizer
 import timm
 import os
-
-VOCAB_SIZE = tokenizer.vocab_size 
-IGNORE_INDEX = tokenizer.stoi[tokenizer.pad_token]
 
 class PatchEmbeddings(nn.Module):
     
     def __init__(self, config) -> None:
         
         super().__init__()
-        
         self.conv_patch_layer = nn.Conv2d(in_channels = config['channels'],
                                          out_channels = config['d_model'],
                                          kernel_size = config['patch_size'],
@@ -45,11 +39,7 @@ class ViTEmbedding(nn.Module):
             data = torch.randn(size=(1, config['num_patches']+1, config["d_model"])),
             requires_grad = True
         )
-        self.patch_embeddings_layer = PatchEmbeddings(
-            patch_size = config["patch_size"],
-            channels =config["channels"],
-            d_model = config["d_model"]
-        )
+        self.patch_embeddings_layer = PatchEmbeddings(config)
         
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         # images -> B, C, H, W
@@ -174,9 +164,9 @@ class CausalSelfAttnBlock(nn.Module):
         assert config["d_model"] % config["num_heads"] == 0, ValueError(f"{config['d_model']} d_model should be exactly divisible by {config['num_heads']} num_heads")
         
         self.d_model = config["d_model"]
-        self.head_dim = config["d_model"] // config.num_heads
-        self.num_heads = config.num_heads
-        self.softmax_eps = config.softmax_eps
+        self.head_dim = config["d_model"] // config["num_heads"]
+        self.num_heads = config["num_heads"]
+        self.softmax_eps = config["softmax_eps"]
         
         self.projection_layer = nn.Linear(self.d_model, self.d_model*3)
         self.out_layer = nn.Linear(self.d_model, self.d_model)
@@ -212,16 +202,16 @@ class CrossAttnBlock(nn.Module):
         
         super().__init__()
 
-        assert config.d_model%config.config.num_heads==0, ValueError(f"{config.d_model} d_model must be divisible by {config.num_heads} num_heads")
+        assert config["d_model"]%config["num_heads"]==0, ValueError(f"{config['d_model']} d_model must be divisible by {config['num_heads']} num_heads")
 
-        self.d_model = config.d_model
-        self.num_heads = config.num_heads
-        self.head_dim = config.d_model // config.num_heads
-        self.q_proj = nn.Linear(config.d_model, config.d_model)
-        self.k_proj = nn.Linear(config.d_model, config.d_model)
-        self.v_proj = nn.Linear(config.d_model, config.d_model)
-        self.projection_layer = nn.Linear(config.d_model, config.d_model)
-        self.layer_norm = nn.LayerNorm(normalized_shape=config.d_model)
+        self.d_model = config['d_model']
+        self.num_heads = config['num_heads']
+        self.head_dim = config['d_model'] // config['num_heads']
+        self.q_proj = nn.Linear(self.d_model, self.d_model)
+        self.k_proj = nn.Linear(self.d_model, self.d_model)
+        self.v_proj = nn.Linear(self.d_model, self.d_model)
+        self.projection_layer = nn.Linear(self.d_model, self.d_model)
+        self.layer_norm = nn.LayerNorm(normalized_shape=self.d_model)
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor) -> torch.Tensor:
         
@@ -263,7 +253,7 @@ class GPTDecoder(nn.Module):
     def __init__(self, config) -> None:
         
         super().__init__()
-        self.decoder_blocks = nn.ModuleList([GPTDecoderBlock(config) for _ in range(config.num_decoders)])
+        self.decoder_blocks = nn.ModuleList([GPTDecoderBlock(config) for _ in range(config["num_decoders"])])
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor, attn_mask: torch.Tensor) -> torch.Tensor:
         
@@ -277,13 +267,13 @@ class GPT(nn.Module):
     def __init__(self, config) -> None:
         
         super().__init__()
-        self.device = config.device
-        self.context_length = config.context_length
-        self.softmax_eps = config.softmax_eps
+        self.device = config["device"]
+        self.context_length = config["context_length"]
+        self.softmax_eps = config["softmax_eps"]
         self.embedding = GPTEmbedding(config)
         self.decoder = GPTDecoder(config)
-        self.cls_head = nn.Linear(config.d_model, config.vocab_size)
-        self.ignore_index = config.ignore_index
+        self.cls_head = nn.Linear(config["d_model"], config["vocab_size"])
+        self.ignore_index = config["ignore_index"]
     
     def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:
         
@@ -322,18 +312,19 @@ class ImageCaptionModel(nn.Module):
         
         self.device = config['device']
         self.is_vit_pretrained = False
-        if config['vit_kwargs'].pretrained_model_name is not None:
+        if config['vit_kwargs']["pretrained_model_name"] is not None:
             self.is_vit_pretrained = True
             self.vit = timm.create_model(
-                model_name = config['vit_kwargs'].pretrained_model_name,
+                model_name = config['vit_kwargs']["pretrained_model_name"],
                 pretrained=True,
                 num_classes = 0,
                 global_pool = 'avg'
             )
+            config["vit_kwargs"]["d_model"] = self.vit.embed_dim
         else:   
             self.vit = ViT(config['vit_kwargs'])
         self.gpt = GPT(config['gpt_kwargs'])
-        self.dimension_mapping_layer = nn.Linear(config.vit_kwargs['d_model'], config.gpt_kwargs['d_model'])
+        self.dimension_mapping_layer = nn.Linear(config["vit_kwargs"]['d_model'], config["gpt_kwargs"]['d_model'])
         
     def forward(self, image: torch.Tensor, tokens: torch.Tensor, attn_mask: torch.Tensor, targets: torch.Tensor=None) -> Tuple[torch.Tensor]:
         
@@ -350,7 +341,7 @@ class ImageCaptionModel(nn.Module):
                  max_len: int=40) -> List[int]:
 
         image_encoding: torch.Tensor = self.vit(image)
-        dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding)
+        dimension_mapped_image_encoding = self.dimension_mapping_layer(image_encoding[:, None, :])
 
         tokens = torch.tensor(data=[[sos_token]], requires_grad=False).to(self.device)
         attn_mask = torch.tensor(data=[[1]], requires_grad=False).to(self.device)
@@ -370,12 +361,11 @@ class ImageCaptionModel(nn.Module):
         return list(tokens[0])
     
     @classmethod
-    def from_pretrained(cls, vit_kwargs, gpt_kwargs, checkpoint):
+    def from_pretrained(cls, config, checkpoint):
 
         if not os.path.exists(checkpoint):
             raise FileNotFoundError(f"{checkpoint} does not exist")
 
-        model = cls(vit_kwargs, gpt_kwargs)
-        model.load_state_dict(torch.load(checkpoint, map_location=gpt_kwargs.device))
+        model = cls(config)
+        model.load_state_dict(torch.load(checkpoint, map_location=config["device"]))
         return model
-    

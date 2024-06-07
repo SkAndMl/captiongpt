@@ -23,7 +23,8 @@ vit_kwargs = {
     "patch_size": ps,
     "channels": c,
     "d_model": d_model_vit,
-    "pretrained_model_name": None
+    "pretrained_model_name": None,
+    "device": device
 }
 
 gpt_kwargs = {
@@ -31,7 +32,8 @@ gpt_kwargs = {
     "context_length": ctx_length,
     "num_decoders": num_decoders_gpt,
     "softmax_eps": softmax_denom_eps,
-    "num_heads": num_heads_gpt
+    "num_heads": num_heads_gpt,
+    "device": device
 # should add ignore_index and vocab_size before sending to the model
 }
 

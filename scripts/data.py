@@ -31,7 +31,8 @@ class ImageCaptionDataset(Dataset):
         self.df = dataframe
         self.transform = transforms.Compose([
             transforms.Resize(size=(image_size, image_size)),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
             
     def __len__(self) -> int:
@@ -58,12 +59,14 @@ def prepare_data(train_size: float, image_size: int, batch_size: int) -> Tuple[D
 
     train_dataset = ImageCaptionDataset(
         dataframe = train_data,
-        image_size = image_size
+        image_size = image_size,
+        context_length = ctx_length
     )
 
     test_dataset = ImageCaptionDataset(
         dataframe = test_data,
-        image_size = image_size
+        image_size = image_size,
+        context_length = ctx_length
     )
 
     train_dl = DataLoader(
