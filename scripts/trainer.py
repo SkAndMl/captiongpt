@@ -14,7 +14,7 @@ train_dl, test_dl = prepare_data(train_size, img_size, bs)
 logger.info("Data preparation complete.")
 
 config['gpt_kwargs']['vocab_size'] = tokenizer.vocab_size
-config['gpt_kwargs']['ignore_index'] = tokenizer.stoi[tokenizer.pad_token]
+config['gpt_kwargs']['ignore_index'] = tokenizer.get_vocab()[tokenizer.pad_token]
 
 class Trainer:
 

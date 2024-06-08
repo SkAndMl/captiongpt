@@ -6,7 +6,7 @@ from typing import Tuple
 from PIL import Image
 from scripts.constants import *
 import random
-from scripts.tokenizer import Tokenizer
+from scripts.tokenizer import Tokenizer, TokenizerHF
 
 image_folder = "data/flickr30k_images"
 csv_file_path = "data/results.csv"
@@ -17,7 +17,9 @@ data.drop(columns=' comment_number', axis=1, inplace=True)
 data.reset_index(drop=True, inplace=True)
 data.rename({" comment": "comment"}, axis=1, inplace=True)
 data.iloc[:, 0] = image_folder + "/" + data.iloc[:, 0]
-tokenizer = Tokenizer(texts=data['comment'].tolist(), pad_token='/')
+data['comment'] = '[BOS] ' + data['comment'] + ' [EOS]'
+# tokenizer = Tokenizer(texts=data['comment'].tolist(), pad_token='/')
+tokenizer = TokenizerHF(tokenizer_name="gpt2", special_tokens_dict={"bos_token": "[BOS]", "eos_token": "[EOS]", "pad_token": "[PAD]"})
 
 
 class ImageCaptionDataset(Dataset):
