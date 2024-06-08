@@ -7,8 +7,9 @@ from PIL import Image
 import argparse
 
 transform = transforms.Compose([
-    transforms.Resize(size=(IMG_SIZE, IMG_SIZE)),
-    transforms.ToTensor()
+    transforms.Resize(size=(img_size, img_size)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
 gpt_kwargs['vocab_size'] = tokenizer.vocab_size
@@ -16,13 +17,9 @@ gpt_kwargs["ignore_index"] = tokenizer.stoi[tokenizer.pad_token]
 
 def caption_image(file_path: str, checkpoint: str, device: str="cpu", max_len: int=40) -> str:
     
-    gpt_kwargs['device'] = device
+    config['vit_kwargs']['pretrained_model_name'] = 'vit_tiny_patch16_224'
     image_tensor = transform(Image.open(file_path)).unsqueeze(0)
-    image_caption_model = ImageCaptionModel(vit_kwargs, gpt_kwargs)
-    image_caption_model.load_state_dict(
-        state_dict=torch.load(checkpoint, map_location=device)
-    )
-
+    image_caption_model = ImageCaptionModel.from_pretrained(checkpoint, device)
     tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.stoi[' '],
                                           eos_token=tokenizer.pad_token_id,
                                           max_len=max_len)

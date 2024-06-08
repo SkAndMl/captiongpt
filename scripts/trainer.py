@@ -23,6 +23,7 @@ class Trainer:
         self.device = train_config['device']
         self.model = ImageCaptionModel(model_config).to(self.device)
         self.train_config = train_config
+        self.model_config = model_config
         self.train_dl, self.test_dl = dls
     
     def fit(self):
@@ -107,11 +108,15 @@ epoch: ({epoch+1}/{self.train_config['epochs']}) train: {self.metrics['train_los
 
 
     def save(self, file_path):
+        
+        checkpoint = {
+            "model_state_dict": self.model.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "train_config": self.train_config,
+            "model_config": self.model_config
+        }
 
-        torch.save(
-            obj=self.model.state_dict(),
-            f = file_path
-        )
+        torch.save(checkpoint, file_path)
 
 
 if __name__ == "__main__":

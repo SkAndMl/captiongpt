@@ -361,11 +361,16 @@ class ImageCaptionModel(nn.Module):
         return list(tokens[0])
     
     @classmethod
-    def from_pretrained(cls, config, checkpoint):
+    def from_pretrained(cls, checkpoint, device):
 
         if not os.path.exists(checkpoint):
             raise FileNotFoundError(f"{checkpoint} does not exist")
 
-        model = cls(config)
-        model.load_state_dict(torch.load(checkpoint, map_location=config["device"]))
+        cp = torch.load(checkpoint)
+        cp['model_config']['device'] = device
+        cp['model_config']['vit_kwargs']['device'] = device
+        cp['model_config']['gpt_kwargs']['device'] = device
+
+        model = cls(cp['model_config'])
+        model.load_state_dict(torch.load(cp['model_state_dict'], map_location=device))
         return model

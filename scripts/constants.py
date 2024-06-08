@@ -1,7 +1,7 @@
 import torch
 
 train_size = 0.9
-bs = 32
+bs = 16
 img_size = 224
 ctx_length = 512
 num_encoders_vit = 8
@@ -10,9 +10,9 @@ ps = 16
 c = 3
 d_model_vit = ps**2*c
 num_patches = (img_size*img_size)//(ps*ps)
-d_model_gpt = 384
+d_model_gpt = 512
 num_decoders_gpt = 8
-num_heads_gpt = 6
+num_heads_gpt = 8
 softmax_denom_eps = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
