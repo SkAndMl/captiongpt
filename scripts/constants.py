@@ -3,7 +3,7 @@ import torch
 train_size = 0.9
 bs = 16
 img_size = 224
-ctx_length = 512
+ctx_length = 256
 num_encoders_vit = 8
 num_heads_vit = 4
 ps = 16

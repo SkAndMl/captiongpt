@@ -140,8 +140,8 @@ if __name__ == "__main__":
     }
 
     config['device'] = device
-    config['gpt_kwargs'] = device
-    config['vit_kwargs'] = device
+    config['gpt_kwargs']['device'] = device
+    config['vit_kwargs']['device'] = device
 
     trainer = Trainer(model_config=config,
                       train_config=train_config,

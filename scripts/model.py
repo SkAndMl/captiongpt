@@ -5,6 +5,7 @@ from typing import Tuple, List
 import math
 import timm
 import os
+import io
 
 class PatchEmbeddings(nn.Module):
     
@@ -366,11 +367,12 @@ class ImageCaptionModel(nn.Module):
         if not os.path.exists(checkpoint):
             raise FileNotFoundError(f"{checkpoint} does not exist")
 
-        cp = torch.load(checkpoint)
+        cp = torch.load(checkpoint, map_location=device)
         cp['model_config']['device'] = device
         cp['model_config']['vit_kwargs']['device'] = device
         cp['model_config']['gpt_kwargs']['device'] = device
 
         model = cls(cp['model_config'])
-        model.load_state_dict(torch.load(cp['model_state_dict'], map_location=device))
+        model.load_state_dict(cp['model_state_dict'])
+        model = model.to(device)
         return model

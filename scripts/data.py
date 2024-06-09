@@ -45,7 +45,7 @@ class ImageCaptionDataset(Dataset):
         image, text = Image.open(self.df.iloc[idx, 0]), self.df.iloc[idx, 1]
         image_tensor = self.transform(image)
         op = tokenizer(text, max_len=self.context_length+1)
-        tokens, attention_mask = op['input_ids'], op['attention_mask']
+        tokens, attention_mask = op['input_ids'].squeeze(), op['attention_mask'].squeeze()
         return image_tensor, tokens, attention_mask
     
 

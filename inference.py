@@ -12,16 +12,16 @@ transform = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
 
-gpt_kwargs['vocab_size'] = tokenizer.vocab_size
-gpt_kwargs["ignore_index"] = tokenizer.stoi[tokenizer.pad_token]
+config['gpt_kwargs']['vocab_size'] = tokenizer.vocab_size
+config['gpt_kwargs']['ignore_index'] = tokenizer.get_vocab()[tokenizer.pad_token]
 
 def caption_image(file_path: str, checkpoint: str, device: str="cpu", max_len: int=40) -> str:
     
     config['vit_kwargs']['pretrained_model_name'] = 'vit_tiny_patch16_224'
     image_tensor = transform(Image.open(file_path)).unsqueeze(0)
     image_caption_model = ImageCaptionModel.from_pretrained(checkpoint, device)
-    tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.stoi[' '],
-                                          eos_token=tokenizer.pad_token_id,
+    tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.get_vocab()['[BOS]'],
+                                          eos_token=tokenizer.get_vocab()['[EOS]'],
                                           max_len=max_len)
     return tokenizer.decode(token_ids=[token.item() for token in tokens])
 
