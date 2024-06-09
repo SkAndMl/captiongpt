@@ -1,9 +1,13 @@
 from scripts.model import ImageCaptionModel
 from scripts.data import prepare_data, tokenizer
 from scripts.constants import *
+from scripts.utils import clear_console
 import torch
+import pandas as pd
 import argparse
 import logging
+import matplotlib.pyplot as plt
+import time
 
 # Configure logging 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,14 +29,10 @@ class Trainer:
         self.train_config = train_config
         self.model_config = model_config
         self.train_dl, self.test_dl = dls
+        self.metrics = pd.DataFrame(columns=["Epoch", "Train Loss", "Test Loss"])
     
     def fit(self):
-
-        self.metrics = {
-            "train_loss": [],
-            "test_loss": []
-        }
-
+        start_time = time.time()
         # train_config has to atleast consist of epochs and freeze_epochs
         if self.model.is_vit_pretrained and self.train_config["freeze_epochs"]>0:
             for p in self.model.vit.parameters():
@@ -44,12 +44,20 @@ class Trainer:
         )
 
         for epoch in range(self.train_config["freeze_epochs"]):
-            self.metrics['train_loss'].append(self._train())
-            self.metrics['test_loss'].append(self._eval())
             
-            print(f"""
-epoch: ({epoch+1}/{self.train_config['epochs']}) train: {self.metrics['train_loss'][-1]} test: {self.metrics['test_loss'][-1]}
-""")
+            train_loss = self._train()
+            test_loss = self._eval()
+            elapsed_time = time.time() - start_time
+            self.metrics = self.metrics.append({
+                "epoch": epoch + 1,
+                "train Loss": train_loss,
+                "test Loss": test_loss,
+                "elapsed time": elapsed_time
+            }, ignore_index=True)
+
+            clear_console()
+            print(self.metrics.to_string(index=False))
+            
         
         if self.model.is_vit_pretrained and self.train_config["freeze_epochs"]>0:
             for p in self.model.vit.parameters():
@@ -61,12 +69,18 @@ epoch: ({epoch+1}/{self.train_config['epochs']}) train: {self.metrics['train_los
         )
 
         for epoch in range(self.train_config["freeze_epochs"], self.train_config["epochs"]):
-            self.metrics['train_loss'].append(self._train())
-            self.metrics['test_loss'].append(self._eval()) 
-            
-            print(f"""
-epoch: ({epoch+1}/{self.train_config['epochs']}) train: {self.metrics['train_loss'][-1]} test: {self.metrics['test_loss'][-1]}
-""")
+            train_loss = self._train()
+            test_loss = self._eval()
+            elapsed_time = time.time() - start_time
+            self.metrics = self.metrics.append({
+                "epoch": epoch + 1,
+                "train Loss": train_loss,
+                "test Loss": test_loss,
+                "elapsed time": elapsed_time
+            }, ignore_index=True)
+
+            clear_console()
+            print(self.metrics.to_string(index=False))
             
         return self.metrics
 
@@ -117,6 +131,24 @@ epoch: ({epoch+1}/{self.train_config['epochs']}) train: {self.metrics['train_los
         }
 
         torch.save(checkpoint, file_path)
+
+    def plot_metrics(self):
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.metrics['Epoch'], self.metrics['Train Loss'], label='Train Loss')
+        plt.plot(self.metrics['Epoch'], self.metrics['Test Loss'], label='Test Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title('Training and Test Loss Over Epochs')
+        plt.legend()
+        plt.grid(True)
+
+        ax2 = plt.gca().twinx()
+        ax2.plot(self.metrics['Epoch'], self.metrics['Elapsed Time'], label='Elapsed Time (s)', color='r', linestyle='--')
+        ax2.set_ylabel('Time (seconds)', color='r')
+        ax2.tick_params(axis='y', labelcolor='r')
+        ax2.legend(loc='upper left')
+
+        plt.show()
 
 
 if __name__ == "__main__":
