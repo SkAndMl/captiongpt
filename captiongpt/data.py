@@ -4,9 +4,9 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from typing import Tuple
 from PIL import Image
-from scripts.constants import *
+from captiongpt.constants import *
 import random
-from scripts.tokenizer import Tokenizer, TokenizerHF
+from captiongpt.tokenizer import Tokenizer, TokenizerHF
 
 image_folder = "data/flickr30k_images"
 csv_file_path = "data/results.csv"

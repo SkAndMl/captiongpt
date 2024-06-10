@@ -1,7 +1,7 @@
-from scripts.model import ImageCaptionModel
-from scripts.data import prepare_data, tokenizer
-from scripts.constants import *
-from scripts.utils import clear_console
+from captiongpt.model import ImageCaptionModel
+from captiongpt.data import prepare_data, tokenizer
+from captiongpt.constants import *
+from captiongpt.utils import clear_console
 import torch
 import pandas as pd
 import argparse
@@ -136,8 +136,8 @@ class Trainer:
 
     def plot_metrics(self):
         plt.figure(figsize=(10, 5))
-        plt.plot(self.metrics['Epoch'], self.metrics['Train Loss'], label='Train Loss')
-        plt.plot(self.metrics['Epoch'], self.metrics['Test Loss'], label='Test Loss')
+        plt.plot(self.metrics['epoch'], self.metrics['train_loss'], label='Train Loss')
+        plt.plot(self.metrics['epoch'], self.metrics['test_loss'], label='Test Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
         plt.title('Training and Test Loss Over Epochs')
@@ -145,7 +145,7 @@ class Trainer:
         plt.grid(True)
 
         ax2 = plt.gca().twinx()
-        ax2.plot(self.metrics['Epoch'], self.metrics['Elapsed Time'], label='Elapsed Time (s)', color='r', linestyle='--')
+        ax2.plot(self.metrics['epoch'], self.metrics['elapsed_time'], label='Elapsed Time (s)', color='r', linestyle='--')
         ax2.set_ylabel('Time (seconds)', color='r')
         ax2.tick_params(axis='y', labelcolor='r')
         ax2.legend(loc='upper left')

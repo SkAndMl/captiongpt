@@ -1,7 +1,6 @@
-from scripts.model import ImageCaptionModel
-from scripts.constants import *
-from scripts.data import tokenizer
-import torch
+from captiongpt.model import ImageCaptionModel
+from captiongpt.constants import *
+from captiongpt.data import tokenizer
 from torchvision import transforms
 from PIL import Image
 import argparse
