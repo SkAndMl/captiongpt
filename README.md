@@ -1,4 +1,4 @@
-## image-captioning
+## captiongpt
 
 This repo contains the code for creating an image captioning model using **ViT** and **GPT** models. <br>
 Both the models are trained from scratch. The general architecture of the model in this repo is given in the image below
@@ -11,8 +11,8 @@ Both the models are trained from scratch. The general architecture of the model 
 Clone the repository to your local machine and install the required dependencies using the following commands:
 
 ```bash
-git clone https://github.com/SkAndMl/image-captioning.git
-cd image-captioning
+git clone https://github.com/SkAndMl/captiongpt.git
+cd captiongpt
 pip install -r requirements.txt
 ```
 
@@ -22,18 +22,21 @@ Adjust the **captiongpt/params.py** according to your system configuration and d
 ## Training
 To train the image captioning model, navigate to the repository's root directory and run the following command:
 ```bash
-python -m captiongpt.trainer --epochs 5 --freeze_epochs 2 --lr 0.0001 --model_file_name "custom_caption_model" --device "cuda"
+python -m captiongpt.trainer --epochs 5 --freeze_epochs 2 --lr 0.0001 --model_file_name "image_caption_model.pt" --device "cuda:0"
 ```
 **Parameters**
 1. --epochs: Number of training epochs.
 2. --lr: Learning rate for the optimizer.
 3. --model_file_name: Base name for saving the trained model checkpoints.
+4. --freeze_epochs: Number of epochs to freeze the ViT pretrained model before updating its params
+5. --device: The device to run the training
 
-Given below is the sample training carried out with the keyword aguments mentioned in the **scripts/constants.py** file. As you can see from the training results further optimization is required on the hyperparameter side and the scale of the data
+This command will train the image captioning model and save the checkpoints in the **checkpoints** directory under the specified model file name
 
-<img src="assets/loss_metrics.png" width="600" alt="training result for 5 epochs">
+Given below is the training carried out with the keyword aguments mentioned in the **captiongpt/params.py** file. As you can see from the training results the model has overfit, which will be addressed in future improvements. The training was carried out using P100 GPU offered by Kaggle. 
 
-This command will train the image captioning model and save the checkpoints in the **checkpoints** directory under the specified model file name.
+<img src="assets/loss_metrics.png" width="600" alt="training result for 6 epochs">
+
 
 ## Inference
 To caption an image using the training model under the **checkpoints** directory, use the following command
