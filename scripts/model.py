@@ -5,7 +5,6 @@ from typing import Tuple, List
 import math
 import timm
 import os
-import io
 
 class PatchEmbeddings(nn.Module):
     
@@ -27,6 +26,7 @@ class PatchEmbeddings(nn.Module):
         permuted_patches = flattened_patches.permute(0, 2, 1) # B, N, D_MODEL
         return permuted_patches
 
+
 class ViTEmbedding(nn.Module):
     
     def __init__(self, config) -> None:
@@ -41,6 +41,7 @@ class ViTEmbedding(nn.Module):
             requires_grad = True
         )
         self.patch_embeddings_layer = PatchEmbeddings(config)
+        self.dropout = nn.Dropout(p=config['emb_dropout'])
         
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         # images -> B, C, H, W
@@ -49,7 +50,7 @@ class ViTEmbedding(nn.Module):
             tensors = (self.class_token_embedding.repeat(patch_embeddings.shape[0], 1, 1), patch_embeddings), 
             dim = 1
         ) # B, NUM_PATCHES+1, D_MODEL
-        return patch_embeddings_with_class_token + self.positional_embedding
+        return self.dropout(patch_embeddings_with_class_token + self.positional_embedding)
     
 
 class MSABlock(nn.Module):
@@ -61,9 +62,9 @@ class MSABlock(nn.Module):
         self.attn_block = nn.MultiheadAttention(
             embed_dim = config["d_model"],
             num_heads = config["num_heads"],
-            batch_first = True
+            batch_first = True,
+            dropout=config['attn_dropout']
         )
-        
         self.layer_norm = nn.LayerNorm(normalized_shape=config["d_model"])
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -81,6 +82,7 @@ class MLPBlock(nn.Module):
         self.dense_net = nn.Sequential(
             nn.Linear(d_model, d_model*4),
             nn.GELU(),
+            nn.Dropout(p=config['mlp_dropout']),
             nn.Linear(d_model*4, d_model)
         )
         
@@ -149,12 +151,13 @@ class GPTEmbedding(nn.Module):
             data = torch.randn(size=(1, config["context_length"], config["d_model"])),
             requires_grad = True
         )
+        self.dropout = nn.Dropout(p=config['emb_dropout'])
     
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         
         # tokens -> B, CTX_LENGTH
         token_embeddings = self.token_embedding(tokens)
-        return self.positional_encoding[:, :tokens.shape[1], :] + token_embeddings
+        return self.dropout(self.positional_encoding[:, :tokens.shape[1], :] + token_embeddings)
 
 
 class CausalSelfAttnBlock(nn.Module):
@@ -172,7 +175,8 @@ class CausalSelfAttnBlock(nn.Module):
         self.projection_layer = nn.Linear(self.d_model, self.d_model*3)
         self.out_layer = nn.Linear(self.d_model, self.d_model)
         self.layer_norm = nn.LayerNorm(normalized_shape=self.d_model)
-        
+        self.attn_dropout = nn.Dropout(p=config['attn_dropout'])
+
     def _safe_softmax(self, x: torch.Tensor) -> torch.Tensor:
         
         num = torch.exp(x)
@@ -191,6 +195,7 @@ class CausalSelfAttnBlock(nn.Module):
         
         q_k_prod = (q @ k.transpose(2, 3)) + attn_mask.unsqueeze(1) # B, NUM_HEADS, CTX_LENGTH, CTX_LENGTH
         wts = self._safe_softmax(q_k_prod / math.sqrt(self.head_dim)) # B, NUM_HEADS, CTX_LENGTH, CTX_LENGTH
+        wts = self.attn_dropout(wts)
         attn_outputs = wts @ v # B, NUM_HEADS, CTX_LENGTH, HEAD_DIM
         y = attn_outputs.transpose(1, 2).contiguous().view(B, CTX_LENGTH, -1)
         return self.layer_norm(x + self.out_layer(y))
@@ -213,6 +218,7 @@ class CrossAttnBlock(nn.Module):
         self.v_proj = nn.Linear(self.d_model, self.d_model)
         self.projection_layer = nn.Linear(self.d_model, self.d_model)
         self.layer_norm = nn.LayerNorm(normalized_shape=self.d_model)
+        self.attn_dropout = nn.Dropout(p=config['attn_dropout'])
     
     def forward(self, x: torch.Tensor, image_encoding: torch.Tensor) -> torch.Tensor:
         
@@ -228,9 +234,10 @@ class CrossAttnBlock(nn.Module):
         k = self.k_proj(image_encoding).view(B, 1, self.num_heads, self.head_dim).permute(0, 2, 1, 3) # B, NUM_HEADS, 1, HEAD_DIM
         v = self.v_proj(image_encoding).view(B, 1, self.num_heads, self.head_dim).permute(0, 2, 1, 3) # B, NUM_HEADS, 1, HEAD_DIM
 
-        q_k_prod = F.softmax((q @ k.transpose(2, 3)) / math.sqrt(self.head_dim), dim=-1) # B, NUM_HEADS, CTX_LENGTH, 1
-        wts = q_k_prod @ v # B, NUM_HEADS, CTX_LENGTH, HEAD_DIM
-        y = wts.transpose(1, 2).contiguous().view(B, CTX_LENGTH, -1) # B, CTX_LENGTH, D_MODEL
+        wts = F.softmax((q @ k.transpose(2, 3)) / math.sqrt(self.head_dim), dim=-1) # B, NUM_HEADS, CTX_LENGTH, 1
+        wts = self.attn_dropout(wts)
+        y = wts @ v # B, NUM_HEADS, CTX_LENGTH, HEAD_DIM
+        y = y.transpose(1, 2).contiguous().view(B, CTX_LENGTH, -1) # B, CTX_LENGTH, D_MODEL
         return self.layer_norm(x + self.projection_layer(y))
     
 class GPTDecoderBlock(nn.Module):
@@ -273,7 +280,8 @@ class GPT(nn.Module):
         self.softmax_eps = config["softmax_eps"]
         self.embedding = GPTEmbedding(config)
         self.decoder = GPTDecoder(config)
-        self.cls_head = nn.Linear(config["d_model"], config["vocab_size"])
+        self.cls_head = nn.Linear(config["d_model"], config["vocab_size"], bias=False)
+        self.cls_head.weight = self.embedding.token_embedding.weight
         self.ignore_index = config["ignore_index"]
     
     def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:

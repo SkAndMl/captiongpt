@@ -15,6 +15,9 @@ num_decoders_gpt = 8
 num_heads_gpt = 8
 softmax_denom_eps = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
+attn_dropout = 0.1
+mlp_dropout = 0.1
+emb_dropout = 0.1
 
 vit_kwargs = {
     "num_encoders" : num_encoders_vit,
@@ -24,7 +27,10 @@ vit_kwargs = {
     "channels": c,
     "d_model": d_model_vit,
     "pretrained_model_name": None,
-    "device": device
+    "device": device,
+    "emb_dropout": emb_dropout,
+    "mlp_dropout": mlp_dropout,
+    "attn_dropout": attn_dropout
 }
 
 gpt_kwargs = {
@@ -33,7 +39,10 @@ gpt_kwargs = {
     "num_decoders": num_decoders_gpt,
     "softmax_eps": softmax_denom_eps,
     "num_heads": num_heads_gpt,
-    "device": device
+    "device": device,
+    "emb_dropout": emb_dropout,
+    "mlp_dropout": mlp_dropout,
+    "attn_dropout": attn_dropout
 # should add ignore_index and vocab_size before sending to the model
 }
 

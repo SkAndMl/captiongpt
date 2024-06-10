@@ -29,7 +29,7 @@ class Trainer:
         self.train_config = train_config
         self.model_config = model_config
         self.train_dl, self.test_dl = dls
-        self.metrics = pd.DataFrame(columns=["Epoch", "Train Loss", "Test Loss"])
+        self.metrics = pd.DataFrame(columns=["epoch", "train_loss", "test_loss", "elapsed_time"])
     
     def fit(self):
         start_time = time.time()
@@ -38,9 +38,12 @@ class Trainer:
             for p in self.model.vit.parameters():
                 p.requires_grad = False
         
-        self.optimizer = torch.optim.Adam(
-            params=filter(lambda p:p.requires_grad, self.model.parameters()),
-            lr = self.train_config["lr"]
+        self.optimizer = torch.optim.Adam([
+                {"params": self.model.vit.parameters(), "lr": 0}, # setting to 0 will not update the frozen params
+                {"params": self.model.dimension_mapping_layer.parameters(), "lr": self.train_config['lr']},
+                {"params": self.model.gpt.parameters(), "lr": self.train_config['lr']}
+            ],
+            weight_decay=self.train_config['weight_decay']
         )
 
         for epoch in range(self.train_config["freeze_epochs"]):
@@ -48,12 +51,13 @@ class Trainer:
             train_loss = self._train()
             test_loss = self._eval()
             elapsed_time = time.time() - start_time
-            self.metrics = self.metrics.append({
-                "epoch": epoch + 1,
-                "train Loss": train_loss,
-                "test Loss": test_loss,
-                "elapsed time": elapsed_time
-            }, ignore_index=True)
+            new_row = pd.DataFrame(data={
+                "epoch": [epoch+1],
+                "train_loss": [train_loss],
+                "test_loss": [test_loss],
+                "elapsed_time": [elapsed_time]
+            })
+            self.metrics = pd.concat([self.metrics, new_row], axis=0, ignore_index=True)
 
             clear_console()
             print(self.metrics.to_string(index=False))
@@ -63,21 +67,19 @@ class Trainer:
             for p in self.model.vit.parameters():
                 p.requires_grad = True
         
-        self.optimizer = torch.optim.Adam(
-            params=filter(lambda p:p.requires_grad, self.model.parameters()),
-            lr = self.train_config["lr"]
-        )
+        self.optimizer.param_groups[0]['lr'] = self.train_config['lr']  # unfreeze vit params
 
         for epoch in range(self.train_config["freeze_epochs"], self.train_config["epochs"]):
             train_loss = self._train()
             test_loss = self._eval()
             elapsed_time = time.time() - start_time
-            self.metrics = self.metrics.append({
-                "epoch": epoch + 1,
-                "train Loss": train_loss,
-                "test Loss": test_loss,
-                "elapsed time": elapsed_time
-            }, ignore_index=True)
+            new_row = pd.DataFrame(data={
+                "epoch": [epoch+1],
+                "train_loss": [train_loss],
+                "test_loss": [test_loss],
+                "elapsed_time": [elapsed_time]
+            })
+            self.metrics = pd.concat([self.metrics, new_row], axis=0, ignore_index=True)
 
             clear_console()
             print(self.metrics.to_string(index=False))
@@ -159,6 +161,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_file_name', type=str, default=None)
     parser.add_argument('--freeze_epochs', type=int, default=0)
     parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
 
     args = parser.parse_args()
 
@@ -168,7 +171,8 @@ if __name__ == "__main__":
         "epochs": args.epochs,
         "freeze_epochs": args.freeze_epochs,
         "lr": args.lr,
-        "device": args.device
+        "device": args.device,
+        "weight_decay": args.weight_decay
     }
 
     config['device'] = device
