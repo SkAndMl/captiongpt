@@ -4,7 +4,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from typing import Tuple
 from PIL import Image
-from captiongpt.constants import *
+from captiongpt.params import *
 import random
 from captiongpt.tokenizer import Tokenizer, TokenizerHF
 

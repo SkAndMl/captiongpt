@@ -8,6 +8,8 @@ import os
 
 class PatchEmbeddings(nn.Module):
     
+    """Class for creating the patches of an image using a convolutional layer"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -29,6 +31,8 @@ class PatchEmbeddings(nn.Module):
 
 class ViTEmbedding(nn.Module):
     
+    """Creates the input embeddings for the ViT class by combining both patch and positional embeddings"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -55,6 +59,8 @@ class ViTEmbedding(nn.Module):
 
 class MSABlock(nn.Module):
     
+    """Multihead Self attention block of the decoder. Uses PyTorch's inbuild MHA layer for calculating the attention sub-blocks output"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -75,6 +81,8 @@ class MSABlock(nn.Module):
     
 class MLPBlock(nn.Module):
     
+    """FFN block of the transformer architecture"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -88,26 +96,26 @@ class MLPBlock(nn.Module):
         
         self.layer_norm = nn.LayerNorm(normalized_shape=d_model)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        
-        return self.layer_norm(x + self.dense_net(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor: return self.layer_norm(x + self.dense_net(x))
 
     
 class EncoderBlock(nn.Module):
     
+    """Encoder block which combines both the MSA and MLP blocks"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
         self.msa_block = MSABlock(config)
         self.mlp_block = MLPBlock(config)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        
-        return self.mlp_block(self.msa_block(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor: return self.mlp_block(self.msa_block(x))
     
 
 class Encoder(nn.Module):
     
+    """The encoder backbone of the ViT architecture, made up of 'n' encoder blocks"""
+
     def __init__(self, config) -> None: 
         
         super().__init__()
@@ -122,6 +130,8 @@ class Encoder(nn.Module):
     
 class ViT(nn.Module):
     
+    """The ViT class which puts together the embeddings and the encoder. Returns the representation of the image usign the [CLS] token"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -139,6 +149,8 @@ class ViT(nn.Module):
 
 class GPTEmbedding(nn.Module):
     
+    """Embedding class for the GPT decoder"""
+
     def __init__(self,config) -> None:
         
         super().__init__()
@@ -162,6 +174,10 @@ class GPTEmbedding(nn.Module):
 
 class CausalSelfAttnBlock(nn.Module):
     
+    """Causal self attention class - does not use PyTorch's inbuild masked MHA, since it does not accomodate both causal mask and padding mask. 
+       Safe softmax has been used instead of PyTorch's softmax, to bring numerical stability in the calculations.
+    """
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -204,6 +220,8 @@ class CausalSelfAttnBlock(nn.Module):
 
 class CrossAttnBlock(nn.Module):
     
+    """Cross attention block - similar version of Causal self attention block, but with the key and value tensors being the encoding of the image from ViT"""
+    
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -241,7 +259,9 @@ class CrossAttnBlock(nn.Module):
         return self.layer_norm(x + self.projection_layer(y))
     
 class GPTDecoderBlock(nn.Module):
-    
+
+    """The class which puts together Causal, Cross and FFN blocks together"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -258,6 +278,8 @@ class GPTDecoderBlock(nn.Module):
 
 class GPTDecoder(nn.Module):
     
+    """The backbone of the caption generator, made up of 'n' decoder blocks"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -272,6 +294,8 @@ class GPTDecoder(nn.Module):
     
 class GPT(nn.Module):
     
+    """The caption generator part of the system. Puts together everything"""
+
     def __init__(self, config) -> None:
         
         super().__init__()
@@ -280,8 +304,9 @@ class GPT(nn.Module):
         self.softmax_eps = config["softmax_eps"]
         self.embedding = GPTEmbedding(config)
         self.decoder = GPTDecoder(config)
-        self.cls_head = nn.Linear(config["d_model"], config["vocab_size"], bias=False)
-        self.cls_head.weight = self.embedding.token_embedding.weight
+        self.cls_head = nn.Linear(config["d_model"], config["vocab_size"])
+        # self.cls_head.weight = self.embedding.token_embedding.weight
+        # removed weight tying as it lead to slower convergence
         self.ignore_index = config["ignore_index"]
     
     def _create_mask(self, context_length: int, attn_mask: torch.Tensor) -> torch.Tensor:
@@ -314,6 +339,8 @@ class GPT(nn.Module):
 
 
 class ImageCaptionModel(nn.Module):
+    
+    """This class is the main class. Puts together both ViT and GPT. Lot more useful functions need to be added if someone uses them"""
     
     def __init__(self, config) -> None:
         

@@ -2,16 +2,25 @@ from typing import List, Dict
 import transformers
 import warnings
 import torch
+import pickle
 
 class Tokenizer:
     
-    def __init__(self, texts: List[str], pad_token: str=None) -> None:
+    def __init__(self, texts: List[str], special_tokens_dict: Dict[str, str]) -> None:
         
-        if pad_token is None:
-            warnings.warn(f"'pad_token' must be set if padding is to be done")
+        if special_tokens_dict is None:
+            warnings.warn(f"'special_tokens_dict' has not been set, using default special_tokens_dict")
+            self.special_tokens_dict = {
+                "bos_token": "[BOS]",
+                "eos_token": "[EOS]",
+                "pad_token": "[PAD]"
+            }
+        else:
+            assert 'pad_token' in special_tokens_dict, ValueError("'pad_token' key must be present in the 'special_tokens_dict' passed")
+            self.special_tokens_dict = special_tokens_dict
         
         self.texts = texts
-        self.pad_token = pad_token
+        self.pad_token = self.special_tokens_dict['pad_token']
         self.pad_token_id = None
         self._create_mapping()
     
@@ -20,20 +29,28 @@ class Tokenizer:
         complete_text: str = sorted(list(set(". ".join(self.texts))))
         self.itos = {i:ch for i, ch in enumerate(complete_text)}
         self.stoi = {ch: i for i, ch in enumerate(complete_text)}
-        
+
+        for v in self.special_tokens_dict.values():
+            self.itos[len(self.itos)] = v
+            self.stoi[v] = len(self.stoi)
+
         if self.pad_token is not None:
             if self.stoi.get(self.pad_token, None):
                 raise ValueError(f"{self.pad_token} is present in the vocabulary")
-            
-            self.pad_token_id = len(self.itos)
-            self.itos[self.pad_token_id] = self.pad_token
-            self.stoi[self.pad_token] = self.pad_token_id
+            self.pad_token_id = self.stoi.get(self.pad_token)
         
         self.vocab_size = len(self.itos)
     
     def encode(self, text: str, max_len: int, padding: bool=True) -> Dict[str, torch.Tensor]:
         
-        tokens = [self.stoi[ch] for ch in text]
+        words = text.split(' ')
+        tokens = []
+        for word in words:
+            if word in self.special_tokens_dict.values():
+                tokens.append(self.stoi[word])
+            else:
+                tokens.extend([self.stoi[ch] for ch in word])
+
         attn_mask = [1 for _ in range(len(tokens))]
         if padding:
             if self.pad_token is None:
@@ -57,6 +74,15 @@ class Tokenizer:
 
     def __call__(self, *args, **kwargs):
         return self.encode(*args, **kwargs)
+    
+    def save(self, file_path):
+        with open(file_path, "wb") as f:
+            pickle.dump(self, f)
+    
+    @staticmethod
+    def load(file_path):
+        with open(file_path, "rb") as f:
+            return pickle.load(f)
 
 
 class TokenizerHF:
@@ -91,3 +117,12 @@ class TokenizerHF:
 
     def get_vocab(self):
         return self.tokenizer.get_vocab()
+    
+    def save(self, file_path):
+        with open(file_path, "wb") as f:
+            pickle.dump(self, f)
+    
+    @staticmethod
+    def load(file_path):
+        with open(file_path, "rb") as f:
+            return pickle.load(f)

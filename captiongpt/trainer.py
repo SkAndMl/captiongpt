@@ -1,6 +1,6 @@
 from captiongpt.model import ImageCaptionModel
 from captiongpt.data import prepare_data, tokenizer
-from captiongpt.constants import *
+from captiongpt.params import *
 from captiongpt.utils import clear_console
 import torch
 import pandas as pd
@@ -8,6 +8,8 @@ import argparse
 import logging
 import matplotlib.pyplot as plt
 import time
+from torchvision import transforms
+from PIL import Image
 
 # Configure logging 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,7 +24,7 @@ config['gpt_kwargs']['ignore_index'] = tokenizer.get_vocab()[tokenizer.pad_token
 
 class Trainer:
 
-    def __init__(self, model_config, train_config, dls) -> None:
+    def __init__(self, model_config, train_config, dls, tokenizer) -> None:
         
         self.device = train_config['device']
         self.model = ImageCaptionModel(model_config).to(self.device)
@@ -30,7 +32,13 @@ class Trainer:
         self.model_config = model_config
         self.train_dl, self.test_dl = dls
         self.metrics = pd.DataFrame(columns=["epoch", "train_loss", "test_loss", "elapsed_time"])
-    
+        self.tokenizer = tokenizer
+        self.transform = transforms.Compose([
+            transforms.Resize(size=(img_size, img_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
     def fit(self):
         start_time = time.time()
         # train_config has to atleast consist of epochs and freeze_epochs
@@ -121,6 +129,15 @@ class Trainer:
             total_loss += loss.item()
         
         return total_loss / len(self.test_dl)
+    
+
+    def inference(self, image_path, max_len) -> str:
+        image_tensor = self.transform(Image.open(image_path)).unsqueeze(0)
+        tokens = self.model.generate(image_tensor, 
+                                    sos_token=self.tokenizer.get_vocab()['[BOS]'],
+                                    eos_token=self.tokenizer.get_vocab()['[EOS]'],
+                                    max_len=max_len)
+        return self.tokenizer.decode(token_ids=[token.item() for token in tokens])
 
 
     def save(self, file_path):

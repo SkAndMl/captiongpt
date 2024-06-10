@@ -15,9 +15,9 @@ num_decoders_gpt = 8
 num_heads_gpt = 8
 softmax_denom_eps = 1e-9
 device = "cuda" if torch.cuda.is_available() else "cpu"
-attn_dropout = 0.1
-mlp_dropout = 0.1
-emb_dropout = 0.1
+attn_dropout = 0
+mlp_dropout = 0
+emb_dropout = 0
 
 vit_kwargs = {
     "num_encoders" : num_encoders_vit,

@@ -1,5 +1,5 @@
 from captiongpt.model import ImageCaptionModel
-from captiongpt.constants import *
+from captiongpt.params import *
 from captiongpt.data import tokenizer
 from torchvision import transforms
 from PIL import Image
@@ -16,13 +16,14 @@ config['gpt_kwargs']['ignore_index'] = tokenizer.get_vocab()[tokenizer.pad_token
 
 def caption_image(file_path: str, checkpoint: str, device: str="cpu", max_len: int=40) -> str:
     
-    config['vit_kwargs']['pretrained_model_name'] = 'vit_tiny_patch16_224'
     image_tensor = transform(Image.open(file_path)).unsqueeze(0)
     image_caption_model = ImageCaptionModel.from_pretrained(checkpoint, device)
-    tokens = image_caption_model.generate(image_tensor, sos_token=tokenizer.get_vocab()['[BOS]'],
+    tokens = image_caption_model.generate(image_tensor, 
+                                          sos_token=tokenizer.get_vocab()['[BOS]'],
                                           eos_token=tokenizer.get_vocab()['[EOS]'],
                                           max_len=max_len)
     return tokenizer.decode(token_ids=[token.item() for token in tokens])
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inferencing the image caption model")
