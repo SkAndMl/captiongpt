@@ -31,7 +31,7 @@ class Trainer:
         self.train_config = train_config
         self.model_config = model_config
         self.train_dl, self.test_dl = dls
-        self.metrics = pd.DataFrame(columns=["epoch", "train_loss", "test_loss", "elapsed_time"])
+        self.metrics = pd.DataFrame(columns=["epoch", "train_loss", "test_loss", "train_perplexity", "test_perplexity", "elapsed_time"])
         self.tokenizer = tokenizer
         self.transform = transforms.Compose([
             transforms.Resize(size=(img_size, img_size)),
@@ -56,14 +56,16 @@ class Trainer:
 
         for epoch in range(self.train_config["freeze_epochs"]):
             
-            train_loss = self._train()
-            test_loss = self._eval()
+            train_loss, train_perplexity = self._train()
+            test_loss, test_perplexity = self._eval()
             elapsed_time = time.time() - start_time
             new_row = pd.DataFrame(data={
                 "epoch": [epoch+1],
                 "train_loss": [train_loss],
                 "test_loss": [test_loss],
-                "elapsed_time": [elapsed_time]
+                "elapsed_time": [elapsed_time],
+                "train_perplexity": [train_perplexity],
+                "test_perplexity": [test_perplexity]
             })
             self.metrics = pd.concat([self.metrics, new_row], axis=0, ignore_index=True)
 
@@ -85,7 +87,9 @@ class Trainer:
                 "epoch": [epoch+1],
                 "train_loss": [train_loss],
                 "test_loss": [test_loss],
-                "elapsed_time": [elapsed_time]
+                "elapsed_time": [elapsed_time],
+                "train_perplexity": [train_perplexity],
+                "test_perplexity": [test_perplexity]
             })
             self.metrics = pd.concat([self.metrics, new_row], axis=0, ignore_index=True)
 
@@ -111,7 +115,9 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
         
-        return total_loss / len(self.train_dl)
+        avg_loss = total_loss / len(self.train_dl)
+        train_perplexity = torch.exp(torch.tensor(avg_loss))
+        return avg_loss, train_perplexity.item()
 
     
     def _eval(self):
@@ -128,7 +134,9 @@ class Trainer:
             _, loss = self.model(image, input_tokens, attn_mask, target_tokens)
             total_loss += loss.item()
         
-        return total_loss / len(self.test_dl)
+        avg_loss = total_loss / len(self.test_dl)
+        test_perplexity = torch.exp(torch.tensor(avg_loss))
+        return avg_loss, test_perplexity.item()
     
 
     def inference(self, image_path, max_len) -> str:
@@ -152,7 +160,8 @@ class Trainer:
         torch.save(checkpoint, file_path)
 
     def plot_metrics(self):
-        plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(12, 6))
+        plt.subplot(1, 2, 1)
         plt.plot(self.metrics['epoch'], self.metrics['train_loss'], label='Train Loss')
         plt.plot(self.metrics['epoch'], self.metrics['test_loss'], label='Test Loss')
         plt.xlabel('Epoch')
@@ -161,13 +170,17 @@ class Trainer:
         plt.legend()
         plt.grid(True)
 
-        ax2 = plt.gca().twinx()
-        ax2.plot(self.metrics['epoch'], self.metrics['elapsed_time'], label='Elapsed Time (s)', color='r', linestyle='--')
-        ax2.set_ylabel('Time (seconds)', color='r')
-        ax2.tick_params(axis='y', labelcolor='r')
-        ax2.legend(loc='upper left')
+        plt.subplot(1, 2, 2)
+        plt.plot(self.metrics['epoch'], self.metrics['train_perplexity'], label='Train Perplexity')
+        plt.plot(self.metrics['epoch'], self.metrics['test_perplexity'], label='Test Perplexity')
+        plt.xlabel('Epoch')
+        plt.ylabel('Perplexity')
+        plt.title('Training and Test Perplexity Over Epochs')
+        plt.legend()
+        plt.grid(True)
 
-        plt.show()
+        plt.tight_layout()
+    plt.show()
 
 
 if __name__ == "__main__":
